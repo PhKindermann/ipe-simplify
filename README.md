@@ -1,9 +1,11 @@
 With the simplify ipelet, you can simplify a path in the sense that 
 points that only a small number of points (based on the input 
-tolerance) are kept. The following example illustrates a hand-drawn 
-path and two simplifications of it.
+tolerance) are kept while retaining the shape. The following example 
+illustrates a hand-drawn path and two simplifications of it.
 
 ![Simplify examples](simplify.png) 
+
+The ipelet utilizes the [Ramer–Douglas–Peucker algorithm](https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm)
 
 # Download & Installation #
 

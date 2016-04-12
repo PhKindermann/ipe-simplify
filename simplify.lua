@@ -7,7 +7,7 @@ SUMMARY
 
  This ipelet adds an option to simplify paths.
  
- The code is based on "Simplify.js" by Vladimir Agafonkin
+ The code is based on the Ramer–Douglas–Peucker algorithm.
 
 FILE/AUTHOR HISTORY
 
@@ -70,26 +70,13 @@ function simplify(model)
    model:register(t)
 end
 
-
-
-
-function getString(model, string)
+function getString(model, st)
    if ipeui.getString ~= nil then
-      return ipeui.getString(model.ui, "Enter tolerance in px")
+      return ipeui.getString(model.ui, st)
    else 
-      return model:getString("Enter tolerance in px")
+      return model:getString(st)
    end
 end
-
-
-function getSquareDistance(p1, p2)
-    -- Square distance between two points
-    dx = p1.x - p2.x
-    dy = p1.y - p2.y
-
-    return dx * dx + dy * dy
-end
-
 
 function getSquareSegmentDistance(p, p1, p2)
     -- Square distance between point and a segment
