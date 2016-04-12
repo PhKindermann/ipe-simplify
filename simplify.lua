@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------
--- presentation goodies for Ipe
+-- Simplify Path for Ipe
 
 --[[
 
