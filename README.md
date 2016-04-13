@@ -10,7 +10,7 @@ simplifications of it.
 
 ![Simplify examples](simplify.png) 
 
-The second example illustrates a hand-drawn path, a polygonal simplification
+The second example shows a hand-drawn path, a polygonal simplification
 with tolerance 5px, and a spline simplification with tolerance 10px.
 
 ![Simplify examples](simplifyspline.png) 
@@ -24,6 +24,7 @@ Download [simplify.lua](simplify.lua) and copy it to ~/.ipe/ipelets/
 
 Run "Ipelets->Simplify Path->Simplify" to simplify the currently selected path.  
 Run "Ipelets->Simplify Path->Simplify to Spline" to create a spline instead of a path. 
+Run "Ipelets->Simplify Path->Convert to Spline" to convert a path to a spline.
 
 # Changes #
 
