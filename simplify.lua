@@ -5,13 +5,16 @@
 
 SUMMARY
 
- This ipelet adds an option to simplify paths.
+ This ipelet adds an option to simplify paths: it reduces the number
+ of vertices while retaining the shape of the path. It also gives the
+ option to convert a path to a spline.
  
  The code is based on the Ramer–Douglas–Peucker algorithm.
 
 FILE/AUTHOR HISTORY
 
  version  0. Initial Release. Philipp Kindermann 2016
+ version  1. Added spline support. Philipp Kindermann 2016
 
 LICENSE
 
