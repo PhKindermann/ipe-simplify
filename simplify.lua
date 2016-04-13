@@ -35,14 +35,16 @@ about = [[
   path without changing the drawing by much.
 ]]
 
+V = ipe.Vector
 
-function simplify(model)
+
+function simplify(model, num)
    local str = getString(model, "Enter tolerance in px")
    if not str or str:match("^%s*$)") then return end
    tolerance = tonumber(str)
 
    -- start to edit the edges
-   local t = { label = "shorten edges",
+   local t = { label = "simplify path",
 	       pno = model.pno,
 	       vno = model.vno,
 	       selection = model:selection(),
@@ -60,7 +62,37 @@ function simplify(model)
           local shape = obj:shape()
           for _, subPath in ipairs(shape) do
             if (subPath["type"] == "curve") then
-              simplifyPath(subPath, tolerance)
+              simplifyPath(subPath, tolerance, num)
+            end
+          end
+          obj:setShape(shape)
+        end
+      end
+    end
+   model:register(t)
+end
+
+function convert(model, num)
+   -- start to edit the edges
+   local t = { label = "convert",
+	       pno = model.pno,
+	       vno = model.vno,
+	       selection = model:selection(),
+	       original = model:page():clone(),
+	       matrix = matrix,
+	       undo = _G.revertOriginal,}
+   t.redo = function (t, doc)
+      local p = doc[t.pno]
+      for _, i in ipairs(t.selection) do
+        p:setSelect(i, 2)
+      end
+      local p = doc[t.pno]
+      for i, obj, sel, layer in p:objects() do
+        if sel then
+          local shape = obj:shape()
+          for _, subPath in ipairs(shape) do
+            if (subPath["type"] == "curve") then
+              convertPath(subPath)
             end
           end
           obj:setShape(shape)
@@ -78,50 +110,34 @@ function getString(model, st)
    end
 end
 
-function getSquareSegmentDistance(p, p1, p2)
-    -- Square distance between point and a segment
-    x = p1.x
-    y = p1.y
 
-    dx = p2.x - x
-    dy = p2.y - y
 
-    if dx ~= 0 or dy ~= 0 then
-        t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy)
-
-        if t > 1 then
-            x = p2.x
-            y = p2.y
-        elseif t > 0 then
-            x = x + dx * t
-            y = y + dy * t
-        end
+function simplifyPath(path, tolerance, num)
+  
+  -- get all control points
+  points = {}
+  for i,seg in ipairs(path) do
+    for j = 1,#seg - 1 do
+      table.insert(points,seg[j])
     end
-
-    dx = p.x - x
-    dy = p.y - y
-
-    return dx * dx + dy * dy
-end
-
-
-function simplifyPath(path, tolerance)
+  end
+  table.insert(points,path[#path][#path[#path]])
+  
+  -- initialize
   first = 1
-  last = #path
+  last = #points
   marked = {}
   first_stack = {}
   last_stack = {}
   new_points = {}
   marked[first] = 1
-  marked[last+1] = 1
+  marked[last] = 1
+  
+  -- mark points to keep
   while last do
     max_sqdist = 0
     for i = first + 1,last do 
-      if (last > #path) then
-        sqdist = getSquareSegmentDistance(path[i][1], path[first][1], path[#path][2])
-      else
-        sqdist = getSquareSegmentDistance(path[i][1], path[first][1], path[last][1])
-      end
+      sqdist = getSquareSegmentDistance(points[i], points[first], points[last])
       if sqdist > max_sqdist then
         index = i
         max_sqdist = sqdist
@@ -149,14 +165,12 @@ function simplifyPath(path, tolerance)
     end
   end
   
-  -- only use first vertex, last vertex, and marked vertices
-  table.insert(new_points,path[1][1])
-  for i, seg in ipairs(path) do
+  -- only use marked vertices
+  for i, point in ipairs(points) do
     if marked[i] then
-      table.insert(new_points,seg[1])
+      table.insert(new_points,point)
     end
   end
-  table.insert(new_points,path[#path][2])
   
   -- clear the path
   while #path > 0 do
@@ -164,14 +178,157 @@ function simplifyPath(path, tolerance)
   end
     
   -- reinsert the marked vertices
-  for i=2,#new_points do
-    seg = {new_points[i-1],new_points[i]}
+  if num == 2 then --spline
+    if #new_points > 2 then
+      cp = cp2(new_points[1],new_points[2],new_points[3])
+      seg = {new_points[1],cp,new_points[2]}
+      seg.type = "spline"
+      table.insert(path,seg)
+    else
+      seg = {new_points[1],new_points[2]}
+      seg.type = "segment"
+      table.insert(path,seg)      
+    end
+    for i=2,#new_points-2 do
+      q1 = new_points[i-1]
+      q2 = new_points[i]
+      q3 = new_points[i+1]
+      q4 = new_points[i+2]
+      cpa = cp1(q1,q2,q3)
+      cpb = cp2(q2,q3,q4)
+      seg = {q2,cpa,cpb,q3}
+      seg.type = "spline"
+      table.insert(path,seg)
+    end
+    if #new_points > 2 then
+      cp = cp1(new_points[#new_points-2],new_points[#new_points-1],new_points[#new_points])
+      seg = {new_points[#new_points-1],cp,new_points[#new_points]}
+      seg.type = "spline"
+      table.insert(path,seg)
+    end
+  else --path
+    for i=2,#new_points do
+      seg = {new_points[i-1],new_points[i]}
+      seg.type = "segment"
+      table.insert(path,seg)
+    end
+  end  
+end
+
+
+-- convert a path to a Bezier curve
+function convertPath(path)
+  -- get all control points
+  points = {}
+  for i,seg in ipairs(path) do
+    for j = 1,#seg - 1 do
+      table.insert(points,seg[j])
+    end
+  end
+  table.insert(points,path[#path][#path[#path]])
+  
+    -- clear the path
+  while #path > 0 do
+    table.remove(path)
+  end
+  
+  -- create Bezier curves
+  if #points > 2 then
+    cp = cp2(points[1],points[2],points[3])
+    seg = {points[1],cp,points[2]}
+    seg.type = "spline"
+    table.insert(path,seg)
+  else
+    seg = {points[1],points[2]}
     seg.type = "segment"
+    table.insert(path,seg)      
+  end
+  for i=2,#points-2 do
+    q1 = points[i-1]
+    q2 = points[i]
+    q3 = points[i+1]
+    q4 = points[i+2]
+    cpa = cp1(q1,q2,q3)
+    cpb = cp2(q2,q3,q4)
+    seg = {q2,cpa,cpb,q3}
+    seg.type = "spline"
     table.insert(path,seg)
   end
+  if #points > 2 then
+    cp = cp1(points[#points-2],points[#points-1],points[#points])
+    seg = {points[#points-1],cp,points[#points]}
+    seg.type = "spline"
+    table.insert(path,seg)
+  end
+
 end
+
+
+
+-- Square distance between point and a segment
+function getSquareSegmentDistance(p, p1, p2)
+    x = p1.x
+    y = p1.y
+
+    dx = p2.x - x
+    dy = p2.y - y
+
+    if dx ~= 0 or dy ~= 0 then
+        t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy)
+
+        if t > 1 then
+            x = p2.x
+            y = p2.y
+        elseif t > 0 then
+            x = x + dx * t
+            y = y + dy * t
+        end
+    end
+
+    dx = p.x - x
+    dy = p.y - y
+
+    return dx * dx + dy * dy
+end
+
+-- first control point between p2 and p3
+function cp1(p1,p2,p3)
+  local tangent = tang(p1,p2,p3)
+  local normtan = {tangent[1]/len(tangent), tangent[2]/len(tangent)}
+  local vec = {p3.x - p2.x, p3.y - p2.y}
+  local veclen = len(vec) / 3
+  return V(p2.x + normtan[1] * veclen, p2.y + normtan[2] * veclen)
+end
+
+-- second control point between p2 and p3
+function cp2(p2,p3,p4)
+  local tangent = tang(p2,p3,p4)
+  local normtan = {tangent[1]/len(tangent), tangent[2]/len(tangent)}
+  local vec = {p3.x - p2.x, p3.y - p2.y}
+  local veclen = len(vec) / 3
+  return V(p3.x - normtan[1] * veclen, p3.y - normtan[2] * veclen)
+end
+
+-- vector for control points around p2
+function tang(p1,p2,p3)
+  local vec1 = {p2.x - p1.x, p2.y - p1.y}
+  local vec2 = {p3.x - p2.x, p3.y - p2.y}
+  local normvec1 = {vec1[1]/len(vec1), vec1[2]/len(vec1)}
+  local normvec2 = {vec2[1]/len(vec2), vec2[2]/len(vec2)}
+  local tangent = {normvec2[1] + normvec1[1], normvec2[2] + normvec1[2]}
+  return tangent  
+end
+
+-- length of a vector
+function len(vec)
+  sqlen = vec[1] * vec[1] + vec[2] * vec[2]
+  return math.sqrt(sqlen)  
+end
+
 
 methods = {
   { label = "Simplify", run=simplify},
+  { label = "Simplify to Spline", run=simplify},
+  { label = "Convert to Spline", run=convert}
 }
 
