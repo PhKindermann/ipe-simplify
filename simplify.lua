@@ -15,6 +15,7 @@ FILE/AUTHOR HISTORY
 
  version  0. Initial Release. Philipp Kindermann 2016
  version  1. Added spline support. Philipp Kindermann 2016
+ version  2. Make rounded corners. Philipp Kindermann 2022
 
 LICENSE
 
@@ -39,6 +40,8 @@ about = [[
 ]]
 
 V = ipe.Vector
+
+radius = 4
 
 
 function simplify(model, num)
@@ -267,6 +270,91 @@ function convertPath(path)
 end
 
 
+function round(model, num)
+   -- start to edit the edges
+   local t = { label = "round",
+	       pno = model.pno,
+	       vno = model.vno,
+	       selection = model:selection(),
+	       original = model:page():clone(),
+	       matrix = matrix,
+	       undo = _G.revertOriginal,}
+   t.redo = function (t, doc)
+      local p = doc[t.pno]
+      for _, i in ipairs(t.selection) do
+        p:setSelect(i, 2)
+      end
+      local p = doc[t.pno]
+      for i, obj, sel, layer in p:objects() do
+        if sel then
+          local shape = obj:shape()
+          for _, subPath in ipairs(shape) do
+            if (subPath["type"] == "curve") then
+              roundPath(subPath)
+            end
+          end
+          obj:setShape(shape)
+        end
+      end
+    end
+   model:register(t)
+end
+
+
+function setRadius(model, num)
+   local str = getString(model, "Enter radius in px")
+   if not str or str:match("^%s*$)") then radius = 4 else radius = tonumber(str) end
+   if radius == nil then radius = 4 end
+end
+
+
+-- round the corners
+function roundPath(path)
+  -- get all control points
+  points = {}
+  for i,seg in ipairs(path) do
+    for j = 1,#seg - 1 do
+      table.insert(points,seg[j])
+    end
+  end
+  table.insert(points,path[#path][#path[#path]])
+  
+    -- clear the path
+  while #path > 0 do
+    table.remove(path)
+  end
+  
+  -- create Bezier curves
+  if #points > 2 then
+    seg = {points[1],rd2(points[1],points[2])}
+    seg.type = "segment"
+    table.insert(path,seg)
+    seg = {rd2(points[1],points[2]),points[2],rd1(points[2],points[3])}
+    seg.type = "spline"
+    table.insert(path,seg)
+  else
+    seg = {points[1],points[2]}
+    seg.type = "segment"
+    table.insert(path,seg)      
+  end
+  for i=2,#points-2 do
+    seg = {rd1(points[i],points[i+1]),rd2(points[i],points[i+1])}
+    seg.type = "segment"
+    table.insert(path,seg)
+    seg = {rd2(points[i],points[i+1]),points[i+1],rd1(points[i+1],points[i+2])}
+    seg.type = "spline"
+    table.insert(path,seg)
+  end
+  if #points > 2 then
+    seg = {rd1(points[#points-1],points[#points]),points[#points]}
+	--seg = {points[#points-2],points[#points-1]}
+    seg.type = "segment"
+    table.insert(path,seg)
+  end
+
+end
+
+
 
 -- Square distance between point and a segment
 function getSquareSegmentDistance(p, p1, p2)
@@ -292,6 +380,20 @@ function getSquareSegmentDistance(p, p1, p2)
     dy = p.y - y
 
     return dx * dx + dy * dy
+end
+
+-- rounding: first stopper between p1 and p2
+function rd1(p1,p2)
+  local vec = {p2.x - p1.x, p2.y - p1.y}
+  local veclen = radius / len(vec)
+  return V(p1.x + vec[1] * veclen, p1.y + vec[2] * veclen)
+end
+
+-- rounding: second stopper between p1 and p2
+function rd2(p1,p2)
+  local vec = {p2.x - p1.x, p2.y - p1.y}
+  local veclen = radius / len(vec)
+  return V(p2.x - vec[1] * veclen, p2.y - vec[2] * veclen)
 end
 
 -- first control point between p2 and p3
@@ -332,6 +434,8 @@ end
 methods = {
   { label = "Simplify", run=simplify},
   { label = "Simplify to Spline", run=simplify},
-  { label = "Convert to Spline", run=convert}
+  { label = "Convert to Spline", run=convert},
+  { label = "Set radius for round corners (default: 4px)", run=setRadius},
+  { label = "Round Corners", run=round}
 }
 

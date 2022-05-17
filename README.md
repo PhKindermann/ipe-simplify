@@ -29,6 +29,8 @@ Run "Ipelets->Simplify Path->Simplify to Spline" to create a spline instead of a
 
 Run "Ipelets->Simplify Path->Convert to Spline" to convert a path to a spline.
 
+Run "Ipelets->Simplify Path->Round Corners" to round the corners on a polyline.
+
 # Changes #
 
 **12. April 2016**
@@ -36,3 +38,6 @@ first version of the Simplify Ipelet online
 
 **13. April 2016**
 added options to simplify and convert to a spline
+
+**17. March 2022**
+Added an option to round the corners of a polyline
